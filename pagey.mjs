@@ -278,7 +278,7 @@ function showSite(site) {
 // ---------------------------------------------------------------------------
 // http
 // ---------------------------------------------------------------------------
-async function apiRequest(token, method, route, body) {
+async function apiRequest(token, method, route, body, opts = {}) {
   const isForm = typeof FormData !== "undefined" && body instanceof FormData;
   let response;
   try {
@@ -298,15 +298,19 @@ async function apiRequest(token, method, route, body) {
   }
   if (!response.ok) {
     await response.body?.cancel?.().catch(() => {});
+    const retryNote = opts.isUpload
+      ? " A timeout response can still have completed server-side — run `pagey list` before retrying."
+      : "";
     if (response.status === 401 || response.status === 403) {
-      fail(`Pagey refused the request (HTTP ${response.status}). Check the API token with \`pagey whoami\`. A timeout response can still have completed server-side — run \`pagey list\` before retrying.`);
+      fail(`Pagey refused the request (HTTP ${response.status}). Check the API token with \`pagey whoami\`.${retryNote}`);
     }
     if (response.status === 429) {
       fail("Pagey rate limit or quota reached (HTTP 429). Wait before retrying; daily site-creation allowances reset at midnight UTC.");
     }
     if (response.status === 409) fail("Pagey reported a conflict (HTTP 409) — the subdomain or email is already in use.");
     if (response.status === 410) fail("That site has expired or the form no longer accepts responses (HTTP 410).");
-    fail(`Pagey returned HTTP ${response.status}. A failed upload response can have an unknown outcome — check \`pagey list\` before uploading again.`);
+    if (response.status === 404) fail("Not found (HTTP 404) — the site, form, or token ID may be wrong, deleted, or expired.");
+    fail(`Pagey returned HTTP ${response.status}.${retryNote}`);
   }
   const contentType = response.headers.get("content-type") || "";
   if (contentType.includes("application/json")) return response.json();
@@ -649,7 +653,7 @@ async function doPublish(token, path, opts, flags) {
   for (const key of ["title", "password", "expiresAt", "customSubdomain"]) {
     if (opts[key] !== undefined) form.set(key, opts[key]);
   }
-  const result = await apiRequest(token, "POST", opts.anonymous ? "/public/sites" : "/sites", form);
+  const result = await apiRequest(token, "POST", opts.anonymous ? "/public/sites" : "/sites", form, { isUpload: true });
   const site = pickSite(result.site);
   if (!opts.anonymous) await writeLastSite(site);
   if (boolFlag(flags, "json")) return printJson({ site, files: prepared.files.length, bytes: prepared.bytes });
@@ -745,7 +749,7 @@ async function cmdUpdate(positional, flags) {
   if (!ok) fail("Cancelled — nothing uploaded.");
   const form = new FormData();
   form.set("file", new Blob([prepared.data], { type: "application/zip" }), "site.zip");
-  const result = await apiRequest(token, "PUT", `/sites/${id}/content`, form);
+  const result = await apiRequest(token, "PUT", `/sites/${id}/content`, form, { isUpload: true });
   const site = pickSite(result.site);
   await writeLastSite(site);
   if (boolFlag(flags, "json")) return printJson({ site });
@@ -853,13 +857,18 @@ async function cmdFiles(positional, flags) {
   const query = sub ? `?path=${encodeURIComponent(String(sub))}` : "";
   const result = await apiRequest(token, "GET", `/sites/${id}/files${query}`);
   if (boolFlag(flags, "json")) return printJson(result);
+  const entries = result.entries ?? result.files ?? result.items ?? result.tree ?? [];
   const walk = (nodes, prefix = "") => {
     for (const node of nodes ?? []) {
-      print(`${node.type === "directory" ? "▸" : "•"} ${prefix}${node.name}${node.size != null ? ` (${fmtBytes(node.size)})` : ""}`);
-      if (node.children) walk(node.children, `${prefix}${node.name}/`);
+      const kind = node.type ?? (node.children ? "directory" : "file");
+      const name = node.name ?? node.path ?? "?";
+      if (kind === "directory" || node.type === "directory") print(`▸ ${prefix}${name}/`);
+      else print(`• ${prefix}${name}${node.size != null ? ` (${fmtBytes(node.size)})` : ""}`);
+      if (node.children) walk(node.children, `${prefix}${name}/`);
     }
   };
-  walk(result.files ?? result.items ?? result.tree ?? []);
+  walk(entries);
+  if (result.totals) print(`total: ${result.totals.files ?? "?"} file(s), ${result.totals.bytes != null ? fmtBytes(result.totals.bytes) : "?"}`);
   if (result.contentRevision !== undefined) print(`content revision: ${result.contentRevision}`);
 }
 
