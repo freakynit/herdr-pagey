@@ -1,0 +1,82 @@
+id = "pagey.publish"
+name = "Pagey Site Publish"
+version = "1.0.0"
+min_herdr_version = "0.7.0"
+description = "Publish static sites to Pagey for free — no cap on total sites — and manage them without leaving Herdr."
+platforms = ["linux", "macos", "windows"]
+
+[[actions]]
+id = "setup"
+title = "Pagey: Set API token"
+description = "Save your Pagey API token for publishing."
+command = ["node", "pagey.mjs", "setup"]
+contexts = ["global", "workspace"]
+
+[[actions]]
+id = "whoami"
+title = "Pagey: Check account"
+description = "Verify the saved API token and show the connected account."
+command = ["node", "pagey.mjs", "whoami"]
+contexts = ["global", "workspace"]
+
+[[actions]]
+id = "publish"
+title = "Pagey: Publish workspace build"
+description = "Publish dist/, out/, build/, or public/ from the current workspace as a live site."
+command = ["node", "pagey.mjs", "publish-auto"]
+contexts = ["workspace"]
+
+[[actions]]
+id = "list"
+title = "Pagey: List sites"
+description = "List your Pagey sites with their public URLs."
+command = ["node", "pagey.mjs", "list"]
+contexts = ["global", "workspace"]
+
+[[actions]]
+id = "last"
+title = "Pagey: Show last published site"
+description = "Show the URL and ID of the site last published from this machine."
+command = ["node", "pagey.mjs", "last"]
+contexts = ["global", "workspace"]
+
+[[actions]]
+id = "analytics-last"
+title = "Pagey: Analytics for last site"
+description = "Show visitor analytics for the last-published site."
+command = ["node", "pagey.mjs", "analytics-last"]
+contexts = ["global", "workspace"]
+
+[[actions]]
+id = "forms-usage"
+title = "Pagey: Form usage"
+description = "Show active form count and this month's submission usage."
+command = ["node", "pagey.mjs", "forms-usage"]
+contexts = ["global", "workspace"]
+
+[[actions]]
+id = "ai-usage"
+title = "Pagey: AI Builder usage"
+description = "Show this month's AI Builder sessions and remaining capacity."
+command = ["node", "pagey.mjs", "ai-usage"]
+contexts = ["global", "workspace"]
+
+[[actions]]
+id = "open-clicked"
+title = "Pagey: Show clicked site info"
+description = "Show public info for a clicked pagey.site link."
+command = ["node", "pagey.mjs", "open-clicked"]
+contexts = ["global"]
+
+[[panes]]
+id = "console"
+title = "Pagey console"
+description = "Interactive Pagey console: publish, update, list, forms, analytics."
+placement = "split"
+command = ["node", "pagey.mjs", "console"]
+
+[[link_handlers]]
+id = "pagey-site"
+title = "Show Pagey site info"
+pattern = "^https://[a-z0-9-]+\\.pagey\\.site(\\/.*)?$"
+action = "open-clicked"
